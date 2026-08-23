@@ -122,17 +122,32 @@ async function pageOverview(ct){
   document.getElementById("goWd").onclick=async()=>{S.page="withdraw";paintShell();await paintPage()};
 }
 async function pageDeposit(ct){
-  ct.innerHTML=`<h1 class="h1">Deposit</h1><p class="muted">Send USSD push and credit wallet after payment.</p>
+  ct.innerHTML=`<h1 class="h1">Deposit</h1><p class="muted">Send USSD push. Status follows Snippe live (pending → completed/failed).</p>
   <div class="grid2"><form class="card" id="dep">
     <div class="field"><label>Phone</label><input name="phone" placeholder="07XXXXXXXX" required/></div>
     <div class="field"><label>Amount</label><input name="amount" type="number" min="500" value="3061" required/></div>
     <div class="field"><label>First name</label><input name="firstname" value="Customer"/></div>
     <div class="field"><label>Last name</label><input name="lastname" value="User"/></div>
     <button class="btn btn-brand btn-block" type="submit">Send USSD</button><div id="msg"></div>
-  </form><div class="card"><h3>How it works</h3><p class="muted">Customer confirms on phone → Snippe settles → net amount hits your KewePay wallet.</p></div></div>`;
+  </form><div class="card"><h3>How it works</h3><p class="muted">Customer confirms on phone → Snippe settles → KewePay status updates to the same Snippe result.</p></div></div>`;
   document.getElementById("dep").onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.target);const msg=document.getElementById("msg");
-    try{const data=await api("/wallet/deposit",{method:"POST",body:JSON.stringify({phone:fd.get("phone"),amount:Number(fd.get("amount")),customer:{firstname:fd.get("firstname"),lastname:fd.get("lastname")}})});
-      msg.className="msg ok";msg.textContent=`Push sent · ${data.data.reference}`}catch(err){msg.className="msg err";msg.textContent=err.message}}
+    try{
+      const data=await api("/wallet/deposit",{method:"POST",body:JSON.stringify({phone:fd.get("phone"),amount:Number(fd.get("amount")),customer:{firstname:fd.get("firstname"),lastname:fd.get("lastname")}})});
+      const ref=data.data.reference;
+      msg.className="msg ok";msg.textContent=`Push sent · ${ref} · waiting for Snippe…`;
+      for(let i=0;i<24;i++){
+        await new Promise(r=>setTimeout(r,2500));
+        const list=await api("/payments?limit=20");
+        const row=(list.payments||[]).find(p=>p.reference===ref);
+        if(!row) continue;
+        const sn=row.snippe_status||"—";
+        const st=row.status;
+        msg.className=st==="failed"?"msg err":st==="completed"?"msg ok":"msg ok";
+        msg.textContent=`${ref} · Kewe: ${st} · Snippe: ${sn}${row.failure_reason?" · "+row.failure_reason:""}`;
+        if(st==="completed"||st==="failed") break;
+      }
+    }catch(err){msg.className="msg err";msg.textContent=err.message}
+  }
 }
 async function pageWithdraw(ct){
   const bal=await api("/wallet/balance");
@@ -152,8 +167,8 @@ async function pageWithdraw(ct){
 }
 async function pagePayments(ct){
   const data=await api("/payments?limit=50");
-  ct.innerHTML=`<h1 class="h1">Payments</h1><div class="table-wrap"><table><thead><tr><th>Ref</th><th>Phone</th><th>Amount</th><th>Net</th><th>Status</th><th>Created</th></tr></thead>
-  <tbody>${(data.payments||[]).map(p=>`<tr><td class="mono">${p.reference}</td><td>${p.phone}</td><td>${money(p.amount)}</td><td>${money(p.netAmount)}</td><td>${badge(p.status)}</td><td>${new Date(p.createdAt).toLocaleString()}</td></tr>`).join("")||"<tr><td colspan=6>None</td></tr>"}</tbody></table></div>`}
+  ct.innerHTML=`<h1 class="h1">Payments</h1><div class="table-wrap"><table><thead><tr><th>Ref</th><th>Phone</th><th>Amount</th><th>Net</th><th>Kewe</th><th>Snippe</th><th>Reason</th><th>Created</th></tr></thead>
+  <tbody>${(data.payments||[]).map(p=>`<tr><td class="mono">${p.reference}</td><td>${p.phone}</td><td>${money(p.amount)}</td><td>${money(p.net_amount??p.netAmount)}</td><td>${badge(p.status)}</td><td class="mono">${p.snippe_status||"—"}</td><td>${p.failure_reason||"—"}</td><td>${new Date(p.created_at||p.createdAt).toLocaleString()}</td></tr>`).join("")||"<tr><td colspan=8>None</td></tr>"}</tbody></table></div>`}
 async function pageKeys(ct){
   const data=await api("/keys");
   ct.innerHTML=`<h1 class="h1">API Keys</h1><div class="toolbar"><button class="btn btn-brand btn-sm" id="newk">Create key</button></div><div id="box"></div>

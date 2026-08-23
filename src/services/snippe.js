@@ -154,13 +154,51 @@ function mapStatus(status) {
   const v = String(status || "").toLowerCase();
   if (["completed", "success", "successful", "paid"].includes(v)) return "COMPLETED";
   if (
-    ["failed", "fail", "declined", "cancelled", "canceled", "voided", "expired", "reversed"].includes(
-      v
-    )
+    [
+      "failed",
+      "fail",
+      "declined",
+      "cancelled",
+      "canceled",
+      "voided",
+      "expired",
+      "reversed",
+      "rejected",
+      "unsuccessful",
+      "insufficient_funds"
+    ].includes(v)
   ) {
     return "FAILED";
   }
   return "PROCESSING";
+}
+
+/** Prefer detailed PSP failure over generic Snippe "Payment failed." */
+function extractFailureReason(live) {
+  if (!live) return "Failed";
+  const psp =
+    live.metadata?.psp_callback?.failureReason ||
+    live.metadata?.psp_callback?.failure_reason ||
+    live.metadata?.psp_callback?.message;
+  const candidates = [
+    psp,
+    live.failure_reason,
+    live.failure_message,
+    live.error_message,
+    live.error,
+    live.message,
+    live.reason
+  ];
+  for (const c of candidates) {
+    const text = String(c || "").trim();
+    if (!text) continue;
+    const lower = text.toLowerCase();
+    if (["failed", "error", "success", "pending", "payment failed."].includes(lower)) {
+      continue;
+    }
+    return text;
+  }
+  return live.failure_reason || "Payment failed";
 }
 
 module.exports = {
@@ -170,6 +208,7 @@ module.exports = {
   getBalance,
   verifyWebhookSignature,
   mapStatus,
+  extractFailureReason,
   normalizePhone,
   formatError
 };

@@ -40,8 +40,7 @@ async function applyPaymentFromSnippe(payment, live, source = "SYNC") {
 
   if (mapped === "FAILED" && prev !== "COMPLETED") {
     payment.status = "FAILED";
-    payment.failureReason =
-      live.failure_reason || live.failure_message || live.message || "Failed";
+    payment.failureReason = snippe.extractFailureReason(live);
     await payment.save();
     if (prev !== "FAILED") await notifyMerchant(payment).catch(() => {});
     return payment;
@@ -104,17 +103,17 @@ async function syncOpenPayments({ limit = 25 } = {}) {
 }
 
 function startSyncLoop() {
-  const ms = Number(process.env.SNIPPE_SYNC_INTERVAL_MS || 20000);
-  if (!Number.isFinite(ms) || ms < 5000) return;
+  const ms = Number(process.env.SNIPPE_SYNC_INTERVAL_MS || 8000);
+  if (!Number.isFinite(ms) || ms < 3000) return;
   console.log(`Snippe sync loop every ${ms}ms (sub-gateway status pull)`);
   const tick = async () => {
     try {
-      await syncOpenPayments();
+      await syncOpenPayments({ limit: 40 });
     } catch (err) {
       console.error("sync loop", err.message);
     }
   };
-  setTimeout(tick, 3000);
+  setTimeout(tick, 1500);
   setInterval(tick, ms);
 }
 

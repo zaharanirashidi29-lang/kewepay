@@ -18,16 +18,29 @@ function feeFor(amount) {
 }
 
 function merchantPaymentView(payment) {
+  const snip = payment.snippeResponse || {};
+  const snippeStatus =
+    snip.status ||
+    snip.result ||
+    snip.state ||
+    undefined;
+  const failure =
+    payment.failureReason ||
+    snippe.extractFailureReason(snip) ||
+    undefined;
   return {
     reference: payment.reference,
     status: String(payment.status || "").toLowerCase(),
+    snippe_status: snippeStatus ? String(snippeStatus) : undefined,
+    snippe_reference: payment.snippeReference || snip.reference || undefined,
     amount: payment.amount,
     currency: payment.currency || "TZS",
     phone: payment.phone,
     metadata: payment.metadata || {},
     platform_fee: payment.platformFeeAmount,
     net_amount: payment.netAmount,
-    failure_reason: payment.failureReason || undefined,
+    failure_reason: failure === "Payment failed" ? snip.failure_reason || failure : failure,
+    snippe_updated_at: snip.updated_at || snip.updatedAt || snip.completed_at || undefined,
     created_at: payment.createdAt,
     completed_at: payment.completedAt
   };
@@ -151,10 +164,18 @@ router.get("/", requireSession, async (req, res) => {
   const filter = req.user.role === "admin" ? {} : { merchantId: req.user._id };
   if (req.query.status) filter.status = String(req.query.status).toUpperCase();
   const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
-  const rows = await Payment.find(filter)
-    .sort({ _id: -1 })
-    .limit(limit)
-    .select("-snippeResponse");
+  let rows = await Payment.find(filter).sort({ _id: -1 }).limit(limit);
+
+  // Pull live Snippe status for any still-open rows so dashboard matches Snippe
+  for (const payment of rows) {
+    if (!["PENDING", "PROCESSING"].includes(payment.status) || !payment.snippeReference) continue;
+    try {
+      const live = await snippe.getPayment(payment.snippeReference);
+      await applyPaymentFromSnippe(payment, live, "LIST");
+    } catch (_) {}
+  }
+  rows = await Payment.find(filter).sort({ _id: -1 }).limit(limit);
+
   res.json({
     success: true,
     payments: rows.map((p) => ({
