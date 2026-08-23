@@ -8,7 +8,9 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ["merchant", "admin"], default: "merchant" },
     businessName: { type: String, default: "" },
     webhookUrl: { type: String, default: "" },
-    status: { type: String, enum: ["active", "suspended"], default: "active" }
+    status: { type: String, enum: ["active", "suspended"], default: "active" },
+    walletBalance: { type: Number, default: 0 },
+    withdrawPhone: { type: String, default: "" }
   },
   { timestamps: true }
 );

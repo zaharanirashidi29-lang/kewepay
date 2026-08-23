@@ -2,7 +2,8 @@ const express = require("express");
 const Payment = require("../models/Payment");
 const { requireApiKey, requireSession } = require("../middleware/auth");
 const snippe = require("../services/snippe");
-const { notifyMerchant } = require("../services/notify");
+const { applyPaymentFromSnippe } = require("../services/sync");
+const { rateLimit, isSafePublicUrl } = require("../middleware/security");
 
 const router = express.Router();
 
@@ -16,7 +17,29 @@ function feeFor(amount) {
   return { pct, fee, net: Number(amount) - fee };
 }
 
-router.post("/", requireApiKey, async (req, res) => {
+function merchantPaymentView(payment) {
+  return {
+    reference: payment.reference,
+    status: String(payment.status || "").toLowerCase(),
+    amount: payment.amount,
+    currency: payment.currency || "TZS",
+    phone: payment.phone,
+    metadata: payment.metadata || {},
+    platform_fee: payment.platformFeeAmount,
+    net_amount: payment.netAmount,
+    failure_reason: payment.failureReason || undefined,
+    created_at: payment.createdAt,
+    completed_at: payment.completedAt
+  };
+}
+
+const createLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  keyFn: (req) => String(req.user?._id || "anon")
+});
+
+router.post("/", requireApiKey, createLimiter, async (req, res) => {
   try {
     const { phone, amount, reference, customer, description, metadata, webhook_url } =
       req.body || {};
@@ -27,8 +50,20 @@ router.post("/", requireApiKey, async (req, res) => {
     if (!Number.isFinite(amt) || amt < 500) {
       return res.status(400).json({ success: false, error: "amount must be at least 500 TZS" });
     }
+    if (amt > 5_000_000) {
+      return res.status(400).json({ success: false, error: "amount too large" });
+    }
+    if (webhook_url && !isSafePublicUrl(webhook_url)) {
+      return res
+        .status(400)
+        .json({ success: false, error: "webhook_url must be a public HTTPS URL" });
+    }
 
-    const localRef = reference || `KP${Date.now()}${Math.floor(Math.random() * 900 + 100)}`;
+    const localRef =
+      reference || `KP${Date.now()}${Math.floor(Math.random() * 900 + 100)}`;
+    if (!/^[A-Za-z0-9_-]{6,64}$/.test(String(localRef))) {
+      return res.status(400).json({ success: false, error: "invalid reference format" });
+    }
     const exists = await Payment.findOne({ reference: localRef });
     if (exists) {
       return res.status(409).json({ success: false, error: "reference already used" });
@@ -39,6 +74,7 @@ router.post("/", requireApiKey, async (req, res) => {
     const lastname = customer?.lastname || customer?.last_name || "User";
     const email = customer?.email || "customer@kewepay.local";
 
+    // Always KewePay → Snippe master webhook (merchants do not set Snippe webhooks)
     const webhookUrl =
       process.env.SNIPPE_WEBHOOK_URL || `${publicBase()}/webhooks/snippe`;
     if (!/^https:\/\//i.test(webhookUrl)) {
@@ -47,6 +83,7 @@ router.post("/", requireApiKey, async (req, res) => {
         error: "PUBLIC_BASE_URL or SNIPPE_WEBHOOK_URL must be HTTPS (required by Snippe)"
       });
     }
+
     const push = await snippe.createMobilePayment({
       amount: amt,
       phone,
@@ -55,12 +92,12 @@ router.post("/", requireApiKey, async (req, res) => {
       firstname,
       lastname,
       email,
-      metadata: metadata || {}
+      metadata: { ...(metadata || {}), merchant_id: String(req.user._id) }
     });
 
     const snippeRef = push?.reference;
     if (!snippeRef) {
-      return res.status(502).json({ success: false, error: "Snippe did not return a reference" });
+      return res.status(502).json({ success: false, error: "Upstream payment provider error" });
     }
 
     const payment = await Payment.create({
@@ -81,21 +118,9 @@ router.post("/", requireApiKey, async (req, res) => {
       snippeResponse: push
     });
 
-    res.status(201).json({
-      success: true,
-      data: {
-        reference: payment.reference,
-        snippe_reference: payment.snippeReference,
-        status: "pending",
-        amount: payment.amount,
-        currency: "TZS",
-        phone: payment.phone,
-        platform_fee: payment.platformFeeAmount,
-        net_amount: payment.netAmount
-      }
-    });
+    res.status(201).json({ success: true, data: merchantPaymentView(payment) });
   } catch (err) {
-    const msg = err.response?.data?.message || err.message;
+    const msg = snippe.formatError(err);
     res.status(err.response?.status || 500).json({ success: false, error: msg });
   }
 });
@@ -107,54 +132,37 @@ router.get("/:reference", requireApiKey, async (req, res) => {
   });
   if (!payment) return res.status(404).json({ success: false, error: "Not found" });
 
-  // live refresh from Snippe when still open
   if (["PENDING", "PROCESSING"].includes(payment.status) && payment.snippeReference) {
     try {
       const live = await snippe.getPayment(payment.snippeReference);
-      const mapped = snippe.mapStatus(live?.status);
-      if (mapped !== payment.status) {
-        payment.status = mapped;
-        payment.snippeResponse = live;
-        if (mapped === "COMPLETED") {
-          payment.completedAt = new Date();
-          payment.failureReason = "";
-        }
-        if (mapped === "FAILED") {
-          payment.failureReason = live?.failure_reason || live?.message || "Failed";
-        }
-        await payment.save();
-        if (mapped === "COMPLETED" || mapped === "FAILED") {
-          notifyMerchant(payment).catch(() => {});
-        }
-      }
-    } catch (_) {}
+      await applyPaymentFromSnippe(payment, live, "QUERY");
+      await payment.reload?.();
+      const fresh = await Payment.findById(payment._id);
+      return res.json({ success: true, data: merchantPaymentView(fresh || payment) });
+    } catch (_) {
+      /* keep local */
+    }
   }
 
-  res.json({
-    success: true,
-    data: {
-      reference: payment.reference,
-      snippe_reference: payment.snippeReference,
-      status: payment.status.toLowerCase(),
-      amount: payment.amount,
-      currency: payment.currency,
-      phone: payment.phone,
-      metadata: payment.metadata,
-      platform_fee: payment.platformFeeAmount,
-      net_amount: payment.netAmount,
-      failure_reason: payment.failureReason || undefined,
-      created_at: payment.createdAt,
-      completed_at: payment.completedAt
-    }
-  });
+  res.json({ success: true, data: merchantPaymentView(payment) });
 });
 
 router.get("/", requireSession, async (req, res) => {
   const filter = req.user.role === "admin" ? {} : { merchantId: req.user._id };
   if (req.query.status) filter.status = String(req.query.status).toUpperCase();
   const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
-  const rows = await Payment.find(filter).sort({ _id: -1 }).limit(limit);
-  res.json({ success: true, payments: rows });
+  const rows = await Payment.find(filter)
+    .sort({ _id: -1 })
+    .limit(limit)
+    .select("-snippeResponse");
+  res.json({
+    success: true,
+    payments: rows.map((p) => ({
+      ...merchantPaymentView(p),
+      id: p._id,
+      customerName: p.customerName
+    }))
+  });
 });
 
 module.exports = router;

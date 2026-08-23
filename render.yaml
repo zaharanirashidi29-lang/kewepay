@@ -1,0 +1,48 @@
+services:
+  - type: web
+    name: kewepay
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: API_KEY_PEPPER
+        generateValue: true
+      - key: MERCHANT_WEBHOOK_SECRET
+        generateValue: true
+      - key: SNIPPE_API_KEY
+        sync: false
+      - key: SNIPPE_API_BASE_URL
+        value: https://api.snippe.sh
+      - key: SNIPPE_WEBHOOK_SECRET
+        generateValue: true
+      - key: REQUIRE_SNIPPE_WEBHOOK_SIG
+        value: "false"
+      - key: SNIPPE_SYNC_INTERVAL_MS
+        value: "15000"
+      - key: PLATFORM_FEE_PERCENT
+        value: "1.0"
+      - key: MIN_WITHDRAW_TZS
+        value: "100000"
+      - key: MAX_API_KEYS_PER_MERCHANT
+        value: "5"
+      - key: PUBLIC_BASE_URL
+        value: https://kewepay.onrender.com
+      - key: SNIPPE_WEBHOOK_URL
+        value: https://kewepay.onrender.com/webhooks/snippe
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_NAME
+        value: KewePay Admin

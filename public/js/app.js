@@ -1,378 +1,184 @@
-const app = document.getElementById("app");
-const state = {
-  token: localStorage.getItem("kp_token") || "",
-  user: null,
-  summary: null,
-  payments: [],
-  keys: [],
-  flash: null
-};
+const app=document.getElementById("app");
+const S={token:localStorage.getItem("kp_token")||"",user:null,page:"overview",flash:""};
+async function api(path,opts={}){const headers={"Content-Type":"application/json",...(opts.headers||{})};if(S.token)headers.Authorization=`Bearer ${S.token}`;const res=await fetch(path,{...opts,headers});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||"Request failed");return data}
+const money=n=>Number(n||0).toLocaleString()+" TZS";
+const badge=st=>{const s=String(st||"").toUpperCase();return `<span class="badge ${s==="COMPLETED"?"ok":s==="FAILED"?"bad":"warn"}">${s||"PROCESSING"}</span>`};
+function route(){const h=(location.hash||"#/").replace(/^#/,"")||"/";if(h.startsWith("/login"))return renderAuth("login");if(h.startsWith("/register"))return renderAuth("register");if(h.startsWith("/docs"))return renderDocsPublic();if(h.startsWith("/app"))return renderApp();return renderLanding()}
 
-async function api(path, options = {}) {
-  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
-  if (state.token) headers.Authorization = `Bearer ${state.token}`;
-  const res = await fetch(path, { ...options, headers });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "Request failed");
-  return data;
-}
-
-function route() {
-  const hash = location.hash.replace(/^#/, "") || "/";
-  const path = hash.split("?")[0];
-  if (path === "/login") return renderLogin();
-  if (path === "/register") return renderRegister();
-  if (path === "/dashboard") return renderDashboard();
-  if (path === "/docs") return renderDocs();
-  return renderHome();
-}
-
-function nav(extra = "") {
-  return `
-    <div class="nav">
-      <a class="brand" href="#/">Kewe<span>Pay</span></a>
-      <div class="nav-actions">
-        ${extra}
+function renderLanding(){
+  app.innerHTML=`
+  <div class="lp">
+    <nav class="lp-nav">
+      <a class="lp-brand" href="#/"><img src="/assets/logo.png?v=3" alt=""/>KewePay</a>
+      <div class="lp-actions">
+        <a class="btn btn-ghost btn-sm" href="#/docs">API Docs</a>
+        <a class="btn btn-ghost btn-sm" href="#/login">Log in</a>
+        <a class="btn btn-brand btn-sm" href="#/register">Get started</a>
       </div>
-    </div>
-  `;
-}
-
-function renderHome() {
-  app.innerHTML = `
+    </nav>
     <section class="hero">
-      ${nav(`
-        <a class="btn btn-ghost" href="#/docs">Docs</a>
-        <a class="btn btn-soft" href="#/login">Sign in</a>
-        <a class="btn btn-primary" href="#/register">Create account</a>
-      `)}
-      <div class="hero-copy">
-        <h1>KewePay</h1>
-        <p>Your gateway. One API for M-Pesa, Airtel Money, Mixx by YAS and Halotel — settled through Snippe, controlled by you.</p>
+      <div>
+        <div class="eyebrow">Tanzania payment gateway</div>
+        <h1>Collect, withdraw & <span>get paid</span></h1>
+        <p>KewePay is your business payment platform. Accept M-Pesa, Airtel, Mixx & Halotel — then withdraw to mobile money. Powered by Snippe under the hood.</p>
         <div class="cta-row">
-          <a class="btn btn-primary" href="#/register">Start collecting</a>
-          <a class="btn btn-ghost" href="#/docs">View API</a>
+          <a class="btn btn-brand" href="#/register">Open account</a>
+          <a class="btn btn-ghost" href="#/docs">Read API docs</a>
         </div>
+        <div class="trust">
+          <span class="pill">Deposit</span><span class="pill">Withdraw (min 100,000 TZS)</span><span class="pill">API keys</span><span class="pill">Webhooks</span>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <img class="pc" src="/assets/pc.png?v=3" alt="KewePay dashboard"/>
+        <img class="phone" src="/assets/phone.png?v=3" alt="KewePay mobile"/>
       </div>
     </section>
     <section class="section">
-      <h2>Built for control</h2>
-      <p class="lead">Merchants use KewePay keys. You keep the platform. Snippe moves the money on the networks.</p>
-      <div class="grid-3">
-        <div class="feature">
-          <h3>Your brand</h3>
-          <p>Dashboard, API keys and webhooks under KewePay — UnlockVIP stays on its own backend.</p>
-        </div>
-        <div class="feature">
-          <h3>Snippe rails</h3>
-          <p>Every USSD collection is routed to Snippe. You set platform fees and merchant settings.</p>
-        </div>
-        <div class="feature">
-          <h3>Merchant ready</h3>
-          <p>Register, create live keys, push payments, and receive completion webhooks.</p>
-        </div>
+      <h2>Everything you need to get paid</h2>
+      <p class="lead">Same experience style as modern TZ gateways — built for merchants, settled through Snippe.</p>
+      <div class="grid3">
+        <div class="feature"><div class="icon">↓</div><h3>Deposit / Collect</h3><p>Push USSD to any network and credit your KewePay wallet when the customer pays.</p></div>
+        <div class="feature"><div class="icon">↑</div><h3>Withdraw</h3><p>Cash out to mobile money. Minimum withdrawal is 100,000 TZS.</p></div>
+        <div class="feature"><div class="icon">API</div><h3>Developer API</h3><p>Create live keys, send collections from your app, and receive completion webhooks.</p></div>
       </div>
     </section>
-    <section class="section">
-      <h2>Collect in minutes</h2>
-      <p class="lead">POST a phone number and amount. Customer confirms on USSD.</p>
-      <pre class="code-panel">curl -X POST https://your-kewepay.host/v1/payments \\
-  -H "Authorization: Bearer kp_live_..." \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "phone": "2557xxxxxxx",
-    "amount": 3061,
-    "customer": { "firstname": "Asha", "lastname": "Juma", "email": "asha@example.com" }
-  }'</pre>
-    </section>
-    <footer class="site">KewePay · Powered by Snippe · Separate from UnlockVIP</footer>
-  `;
-}
-
-function renderLogin() {
-  app.innerHTML = `
-    <div class="appbar">
-      <a class="brand" href="#/">Kewe<span>Pay</span></a>
-      <a href="#/register">Create account</a>
-    </div>
-    <form class="auth-card" id="login-form">
-      <h1>Sign in</h1>
-      <p>Access your KewePay dashboard.</p>
-      <label>Email</label>
-      <input name="email" type="email" required placeholder="you@business.co.tz" />
-      <label>Password</label>
-      <input name="password" type="password" required />
-      <div class="stack">
-        <button class="btn btn-dark" type="submit">Sign in</button>
+    <div class="band">
+      <div>
+        <h2 style="margin:0 0 .4rem">Start collecting today</h2>
+        <p class="muted" style="margin:0">Create your merchant account and get an API key in minutes.</p>
       </div>
-      <div id="msg"></div>
-    </form>
-  `;
-  document.getElementById("login-form").onsubmit = async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const msg = document.getElementById("msg");
-    try {
-      const data = await api("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email: fd.get("email"), password: fd.get("password") })
-      });
-      state.token = data.token;
-      state.user = data.user;
-      localStorage.setItem("kp_token", data.token);
-      location.hash = "#/dashboard";
-    } catch (err) {
-      msg.className = "msg error";
-      msg.textContent = err.message;
-    }
-  };
-}
-
-function renderRegister() {
-  app.innerHTML = `
-    <div class="appbar">
-      <a class="brand" href="#/">Kewe<span>Pay</span></a>
-      <a href="#/login">Sign in</a>
+      <a class="btn btn-brand" href="#/register">Create free account</a>
     </div>
-    <form class="auth-card" id="reg-form">
-      <h1>Create merchant</h1>
-      <p>Get API keys and start collecting.</p>
-      <label>Full name</label>
-      <input name="name" required />
-      <label>Business name</label>
-      <input name="businessName" required />
-      <label>Email</label>
-      <input name="email" type="email" required />
-      <label>Password</label>
-      <input name="password" type="password" minlength="8" required />
-      <div class="stack">
-        <button class="btn btn-dark" type="submit">Create account</button>
-      </div>
-      <div id="msg"></div>
-    </form>
-  `;
-  document.getElementById("reg-form").onsubmit = async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const msg = document.getElementById("msg");
-    try {
-      const data = await api("/auth/register", {
-        method: "POST",
-        body: JSON.stringify({
-          name: fd.get("name"),
-          businessName: fd.get("businessName"),
-          email: fd.get("email"),
-          password: fd.get("password")
-        })
-      });
-      state.token = data.token;
-      state.user = data.user;
-      localStorage.setItem("kp_token", data.token);
-      location.hash = "#/dashboard";
-    } catch (err) {
-      msg.className = "msg error";
-      msg.textContent = err.message;
-    }
-  };
-}
+    <footer class="footer"><span>© KewePay</span><span>Separate from UnlockVIP · Rails by Snippe</span></footer>
+  </div>`}
 
-function badge(status) {
-  const s = String(status || "").toUpperCase();
-  if (s === "COMPLETED") return '<span class="badge ok">COMPLETED</span>';
-  if (s === "FAILED") return '<span class="badge bad">FAILED</span>';
-  return '<span class="badge warn">PROCESSING</span>';
-}
-
-async function loadDashboardData() {
-  const [me, summary, payments, keys] = await Promise.all([
-    api("/auth/me"),
-    api("/dashboard/summary"),
-    api("/payments?limit=40"),
-    api("/keys")
-  ]);
-  state.user = me.user;
-  state.summary = summary.summary;
-  state.payments = payments.payments || [];
-  state.keys = keys.keys || [];
-}
-
-function renderDashboard() {
-  if (!state.token) {
-    location.hash = "#/login";
-    return;
-  }
-  app.innerHTML = `
-    <div class="appbar">
-      <a class="brand" href="#/dashboard">Kewe<span>Pay</span></a>
-      <div class="nav-actions">
-        <a href="#/docs">Docs</a>
-        <button class="btn btn-soft" id="logout" style="color:#12332f;border-color:var(--line)">Log out</button>
-      </div>
+function renderAuth(mode){
+  const login=mode==="login";
+  app.innerHTML=`
+  <div class="auth">
+    <div class="auth-main">
+      <a class="lp-brand" href="#/"><img src="/assets/logo.png" alt="" style="width:28px;height:28px"/>KewePay</a>
+      <form class="auth-card" id="f">
+        <h1>${login?"Karibu tena":"Create account"}</h1>
+        <p class="sub">${login?"Log in to manage deposits, withdrawals and API keys.":"Open your KewePay merchant account."}</p>
+        ${login?"":`<div class="field"><label>Full name</label><input name="name" required/></div><div class="field"><label>Business name</label><input name="businessName" required/></div>`}
+        <div class="field"><label>Email</label><input name="email" type="email" required/></div>
+        <div class="field"><label>Password</label><input name="password" type="password" required minlength="8"/></div>
+        <button class="btn btn-brand btn-block" type="submit">${login?"Log in":"Register"}</button>
+        <div id="msg"></div>
+        <p class="muted" style="margin-top:1rem">${login?`No account? <a href="#/register" style="color:var(--brand)">Register</a>`:`Have an account? <a href="#/login" style="color:var(--brand)">Log in</a>`}</p>
+      </form>
     </div>
-    <div class="panel" id="dash">Loading dashboard…</div>
-  `;
-  document.getElementById("logout").onclick = () => {
-    state.token = "";
-    localStorage.removeItem("kp_token");
-    location.hash = "#/";
-  };
-
-  loadDashboardData()
-    .then(() => {
-      const s = state.summary;
-      const u = state.user;
-      document.getElementById("dash").innerHTML = `
-        <h1 style="font-family:var(--font-display);letter-spacing:-0.03em;margin:0 0 .3rem">
-          ${u.businessName || u.name}
-        </h1>
-        <p style="color:var(--muted);margin:0 0 1rem">${u.email} · ${u.role}</p>
-        ${state.flash ? `<div class="msg ok">${state.flash}</div>` : ""}
-        <div class="stats">
-          <div class="stat"><div class="label">Volume</div><div class="value">${Number(s.volume).toLocaleString()} TZS</div></div>
-          <div class="stat"><div class="label">Completed</div><div class="value">${s.completed}</div></div>
-          <div class="stat"><div class="label">Processing</div><div class="value">${s.processing}</div></div>
-          <div class="stat"><div class="label">Platform fees</div><div class="value">${Number(s.fees).toLocaleString()} TZS</div></div>
-        </div>
-        ${u.role === "admin" && s.snippe_balance != null ? `<p class="mono">Snippe available balance: ${s.snippe_balance} TZS</p>` : ""}
-
-        <div class="toolbar">
-          <button class="btn btn-dark" id="new-key">Create API key</button>
-          <button class="btn btn-primary" id="save-hook">Save webhook URL</button>
-        </div>
-        <label>Merchant webhook URL</label>
-        <input id="webhookUrl" value="${u.webhookUrl || ""}" placeholder="https://your-app.com/webhooks/kewepay" />
-        <div id="key-box"></div>
-
-        <h2 style="font-family:var(--font-display);margin:2rem 0 .8rem;font-size:1.4rem">API keys</h2>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Name</th><th>Prefix</th><th>Last used</th><th></th></tr></thead>
-            <tbody>
-              ${state.keys
-                .map(
-                  (k) => `<tr>
-                  <td>${k.name}</td>
-                  <td class="mono">${k.prefix}…</td>
-                  <td>${k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString() : "—"}</td>
-                  <td><button data-revoke="${k.id}" class="btn btn-soft" style="color:#12332f;border:1px solid var(--line);padding:.4rem .8rem">Revoke</button></td>
-                </tr>`
-                )
-                .join("") || `<tr><td colspan="4">No keys yet</td></tr>`}
-            </tbody>
-          </table>
-        </div>
-
-        <h2 style="font-family:var(--font-display);margin:2rem 0 .8rem;font-size:1.4rem">Recent payments</h2>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Reference</th><th>Phone</th><th>Amount</th><th>Status</th><th>Created</th></tr></thead>
-            <tbody>
-              ${state.payments
-                .map(
-                  (p) => `<tr>
-                  <td class="mono">${p.reference}</td>
-                  <td>${p.phone}</td>
-                  <td>${Number(p.amount).toLocaleString()} ${p.currency || "TZS"}</td>
-                  <td>${badge(p.status)}</td>
-                  <td>${new Date(p.createdAt).toLocaleString()}</td>
-                </tr>`
-                )
-                .join("") || `<tr><td colspan="5">No payments yet</td></tr>`}
-            </tbody>
-          </table>
-        </div>
-      `;
-
-      document.getElementById("new-key").onclick = async () => {
-        try {
-          const data = await api("/keys", { method: "POST", body: JSON.stringify({ name: "Live" }) });
-          document.getElementById("key-box").innerHTML = `
-            <div class="reveal-key">
-              <strong>Copy now — shown once</strong><br/>${data.key.secret}
-            </div>`;
-          state.flash = "API key created";
-          await loadDashboardData();
-          renderDashboard();
-        } catch (err) {
-          alert(err.message);
-        }
-      };
-
-      document.getElementById("save-hook").onclick = async () => {
-        try {
-          await api("/auth/me", {
-            method: "PATCH",
-            body: JSON.stringify({ webhookUrl: document.getElementById("webhookUrl").value })
-          });
-          state.flash = "Webhook URL saved";
-          renderDashboard();
-        } catch (err) {
-          alert(err.message);
-        }
-      };
-
-      document.querySelectorAll("[data-revoke]").forEach((btn) => {
-        btn.onclick = async () => {
-          if (!confirm("Revoke this key?")) return;
-          await api(`/keys/${btn.dataset.revoke}`, { method: "DELETE" });
-          state.flash = "Key revoked";
-          renderDashboard();
-        };
-      });
-    })
-    .catch((err) => {
-      state.token = "";
-      localStorage.removeItem("kp_token");
-      alert(err.message);
-      location.hash = "#/login";
-    });
+    <div class="auth-side">
+      <h2>Buy, sell & get paid in Tanzania</h2>
+      <p class="muted">Collect mobile money, track wallet balance, and withdraw from one dashboard.</p>
+      <img src="/assets/pc.png?v=3" alt="KewePay" style="border-radius:18px;border:1px solid var(--line);margin-top:1.5rem"/>
+    </div>
+  </div>`;
+  document.getElementById("f").onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.target);const msg=document.getElementById("msg");
+    try{const body=login?{email:fd.get("email"),password:fd.get("password")}:{name:fd.get("name"),businessName:fd.get("businessName"),email:fd.get("email"),password:fd.get("password")};
+      const data=await api(login?"/auth/login":"/auth/register",{method:"POST",body:JSON.stringify(body)});
+      S.token=data.token;S.user=data.user;localStorage.setItem("kp_token",data.token);location.hash="#/app";
+    }catch(err){msg.className="msg err";msg.textContent=err.message}}
 }
 
-function renderDocs() {
-  app.innerHTML = `
-    <div class="appbar">
-      <a class="brand" href="#/">Kewe<span>Pay</span></a>
-      <a class="btn btn-dark" href="#/register">Get API key</a>
-    </div>
-    <div class="panel">
-      <h1 style="font-family:var(--font-display);letter-spacing:-0.03em">API docs</h1>
-      <p style="color:var(--muted);max-width:40rem">KewePay exposes a merchant API. Under the hood every collection is created on Snippe. UnlockVIP keeps using its own backend.</p>
-
-      <h2 style="font-family:var(--font-display);font-size:1.3rem;margin-top:2rem">Create payment</h2>
-      <pre class="code-panel">POST /v1/payments
-Authorization: Bearer kp_live_xxx
-
-{
-  "phone": "255712345678",
-  "amount": 3061,
-  "reference": "ORD123",
-  "customer": {
-    "firstname": "Asha",
-    "lastname": "Juma",
-    "email": "asha@example.com"
-  },
-  "webhook_url": "https://your-app.com/hooks",
-  "metadata": { "order_id": "VIP-1" }
-}</pre>
-
-      <h2 style="font-family:var(--font-display);font-size:1.3rem;margin-top:2rem">Get payment</h2>
-      <pre class="code-panel">GET /v1/payments/{reference}
-Authorization: Bearer kp_live_xxx</pre>
-
-      <h2 style="font-family:var(--font-display);font-size:1.3rem;margin-top:2rem">Merchant webhook</h2>
-      <pre class="code-panel">{
-  "event": "payment.completed",
-  "data": {
-    "reference": "ORD123",
-    "status": "completed",
-    "amount": 3061,
-    "platform_fee": 31,
-    "net_amount": 3030
-  }
-}</pre>
-    </div>
-  `;
+async function renderApp(){
+  if(!S.token){location.hash="#/login";return}
+  app.innerHTML=`<div class="app"><aside class="sidebar" id="sb"></aside><div class="main"><div class="topbar" id="tb"></div><div class="content" id="ct">Loading…</div></div></div><div class="backdrop hidden" id="bd"></div>`;
+  try{S.user=(await api("/auth/me")).user}catch{S.token="";localStorage.removeItem("kp_token");location.hash="#/login";return}
+  paintShell();await paintPage();
 }
+function paintShell(){
+  document.getElementById("sb").innerHTML=`
+    <div class="side-brand"><img src="/assets/logo.png" alt=""/>KewePay</div>
+    ${[["overview","Overview"],["deposit","Deposit"],["withdraw","Withdraw"],["payments","Payments"],["keys","API Keys"],["docs","API Docs"]].map(([id,l])=>`<button class="nav-item ${S.page===id?"active":""}" data-page="${id}">${l}</button>`).join("")}
+    <div style="flex:1"></div><button class="nav-item" id="logout">Log out</button>`;
+  document.getElementById("tb").innerHTML=`<div style="display:flex;gap:.6rem;align-items:center"><button class="menu-btn" id="menu">Menu</button><div><strong>${S.user.businessName||S.user.name}</strong><div class="muted" style="font-size:.8rem">${S.user.email}</div></div></div><span class="badge ok">${S.user.role}</span>`;
+  document.querySelectorAll("[data-page]").forEach(b=>b.onclick=async()=>{S.page=b.dataset.page;paintShell();await paintPage()});
+  document.getElementById("logout").onclick=()=>{S.token="";localStorage.removeItem("kp_token");location.hash="#/"};
+  document.getElementById("menu").onclick=()=>{document.getElementById("sb").classList.add("open");document.getElementById("bd").classList.remove("hidden")};
+  document.getElementById("bd").onclick=()=>{document.getElementById("sb").classList.remove("open");document.getElementById("bd").classList.add("hidden")};
+}
+async function paintPage(){const ct=document.getElementById("ct");if(S.page==="overview")return pageOverview(ct);if(S.page==="deposit")return pageDeposit(ct);if(S.page==="withdraw")return pageWithdraw(ct);if(S.page==="payments")return pagePayments(ct);if(S.page==="keys")return pageKeys(ct);if(S.page==="docs")return pageDocs(ct)}
 
-window.addEventListener("hashchange", route);
-route();
+async function pageOverview(ct){
+  ct.innerHTML="Loading…";
+  const [sum,bal]=await Promise.all([api("/dashboard/summary"),api("/wallet/balance")]);
+  ct.innerHTML=`<h1 class="h1">Overview</h1><p class="muted">Wallet, deposits and withdrawals.</p>
+  ${S.flash?`<div class="msg ok">${S.flash}</div>`:""}
+  <div class="stats">
+    <div class="card stat"><div class="lbl">Wallet</div><div class="val">${money(bal.balance)}</div></div>
+    <div class="card stat"><div class="lbl">Volume</div><div class="val">${money(sum.summary.volume)}</div></div>
+    <div class="card stat"><div class="lbl">Completed</div><div class="val">${sum.summary.completed}</div></div>
+    <div class="card stat"><div class="lbl">Processing</div><div class="val">${sum.summary.processing}</div></div>
+  </div>
+  <div class="toolbar">
+    <button class="btn btn-brand btn-sm" id="goDep">Deposit</button>
+    <button class="btn btn-ghost btn-sm" id="goWd">Withdraw</button>
+  </div>
+  <p class="muted">Min withdraw: <strong>${money(bal.min_withdraw)}</strong></p>`;
+  S.flash="";document.getElementById("goDep").onclick=async()=>{S.page="deposit";paintShell();await paintPage()};
+  document.getElementById("goWd").onclick=async()=>{S.page="withdraw";paintShell();await paintPage()};
+}
+async function pageDeposit(ct){
+  ct.innerHTML=`<h1 class="h1">Deposit</h1><p class="muted">Send USSD push and credit wallet after payment.</p>
+  <div class="grid2"><form class="card" id="dep">
+    <div class="field"><label>Phone</label><input name="phone" placeholder="07XXXXXXXX" required/></div>
+    <div class="field"><label>Amount</label><input name="amount" type="number" min="500" value="3061" required/></div>
+    <div class="field"><label>First name</label><input name="firstname" value="Customer"/></div>
+    <div class="field"><label>Last name</label><input name="lastname" value="User"/></div>
+    <button class="btn btn-brand btn-block" type="submit">Send USSD</button><div id="msg"></div>
+  </form><div class="card"><h3>How it works</h3><p class="muted">Customer confirms on phone → Snippe settles → net amount hits your KewePay wallet.</p></div></div>`;
+  document.getElementById("dep").onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.target);const msg=document.getElementById("msg");
+    try{const data=await api("/wallet/deposit",{method:"POST",body:JSON.stringify({phone:fd.get("phone"),amount:Number(fd.get("amount")),customer:{firstname:fd.get("firstname"),lastname:fd.get("lastname")}})});
+      msg.className="msg ok";msg.textContent=`Push sent · ${data.data.reference}`}catch(err){msg.className="msg err";msg.textContent=err.message}}
+}
+async function pageWithdraw(ct){
+  const bal=await api("/wallet/balance");
+  ct.innerHTML=`<h1 class="h1">Withdraw</h1><p class="muted">Minimum <strong>${money(bal.min_withdraw)}</strong>. Available ${money(bal.balance)}</p>
+  <div class="grid2"><form class="card" id="wd">
+    <div class="field"><label>Phone</label><input name="phone" value="${bal.withdraw_phone||""}" required/></div>
+    <div class="field"><label>Amount</label><input name="amount" type="number" min="${bal.min_withdraw}" required/></div>
+    <div class="field"><label>Name</label><input name="recipientName" value="${S.user.businessName||S.user.name||""}"/></div>
+    <button class="btn btn-brand btn-block" type="submit">Withdraw</button><div id="msg"></div>
+  </form><div class="card" id="wdlist">Loading…</div></div>`;
+  const list=await api("/wallet/withdrawals");
+  document.getElementById("wdlist").innerHTML=`<h3>Recent</h3><div class="table-wrap"><table><thead><tr><th>Ref</th><th>Amount</th><th>Status</th></tr></thead><tbody>${(list.withdrawals||[]).map(w=>`<tr><td class="mono">${w.reference}</td><td>${money(w.amount)}</td><td>${badge(w.status)}</td></tr>`).join("")||"<tr><td colspan=3>None</td></tr>"}</tbody></table></div>`;
+  document.getElementById("wd").onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.target);const msg=document.getElementById("msg");
+    try{const data=await api("/wallet/withdraw",{method:"POST",body:JSON.stringify({phone:fd.get("phone"),amount:Number(fd.get("amount")),recipientName:fd.get("recipientName")})});
+      msg.className="msg ok";msg.textContent=`${data.data.status} · ${data.data.reference}`;S.flash="Withdrawal submitted";S.page="overview";paintShell();await paintPage()}
+    catch(err){msg.className="msg err";msg.textContent=err.message}}
+}
+async function pagePayments(ct){
+  const data=await api("/payments?limit=50");
+  ct.innerHTML=`<h1 class="h1">Payments</h1><div class="table-wrap"><table><thead><tr><th>Ref</th><th>Phone</th><th>Amount</th><th>Net</th><th>Status</th><th>Created</th></tr></thead>
+  <tbody>${(data.payments||[]).map(p=>`<tr><td class="mono">${p.reference}</td><td>${p.phone}</td><td>${money(p.amount)}</td><td>${money(p.netAmount)}</td><td>${badge(p.status)}</td><td>${new Date(p.createdAt).toLocaleString()}</td></tr>`).join("")||"<tr><td colspan=6>None</td></tr>"}</tbody></table></div>`}
+async function pageKeys(ct){
+  const data=await api("/keys");
+  ct.innerHTML=`<h1 class="h1">API Keys</h1><div class="toolbar"><button class="btn btn-brand btn-sm" id="newk">Create key</button></div><div id="box"></div>
+  <div class="field"><label>Webhook URL</label><input id="hook" value="${S.user.webhookUrl||""}"/></div>
+  <button class="btn btn-ghost btn-sm" id="saveh">Save webhook</button>
+  <div class="table-wrap" style="margin-top:1rem"><table><thead><tr><th>Name</th><th>Prefix</th><th>Last used</th><th></th></tr></thead>
+  <tbody>${(data.keys||[]).map(k=>`<tr><td>${k.name}</td><td class="mono">${k.prefix}…</td><td>${k.lastUsedAt?new Date(k.lastUsedAt).toLocaleString():"—"}</td>
+  <td><button class="btn btn-ghost btn-sm" data-rev="${k.id}">Revoke</button></td></tr>`).join("")||"<tr><td colspan=4>None</td></tr>"}</tbody></table></div>`;
+  document.getElementById("newk").onclick=async()=>{const r=await api("/keys",{method:"POST",body:JSON.stringify({name:"Live"})});document.getElementById("box").innerHTML=`<div class="reveal"><strong>Copy now</strong><br/>${r.key.secret}</div>`};
+  document.getElementById("saveh").onclick=async()=>{await api("/auth/me",{method:"PATCH",body:JSON.stringify({webhookUrl:document.getElementById("hook").value})});S.flash="Saved";await renderApp()};
+  document.querySelectorAll("[data-rev]").forEach(b=>b.onclick=async()=>{if(!confirm("Revoke?"))return;await api(`/keys/${b.dataset.rev}`,{method:"DELETE"});await pageKeys(ct)});
+}
+function docsHtml(){return `<div class="docs"><h1 class="h1">API Documentation</h1>
+<p class="muted">KewePay merchant API — collections & withdrawals via Snippe.</p>
+<h2>Auth</h2><pre class="code">Authorization: Bearer kp_live_xxx</pre>
+<h2>Collect / deposit</h2><pre class="code">POST /v1/payments
+{"phone":"2557...","amount":3061,"customer":{"firstname":"Asha","lastname":"Juma","email":"a@x.com"}}</pre>
+<h2>Get payment</h2><pre class="code">GET /v1/payments/{reference}</pre>
+<h2>Wallet deposit</h2><pre class="code">POST /wallet/deposit
+{"phone":"07...","amount":5000}</pre>
+<h2>Withdraw (min 100,000 TZS)</h2><pre class="code">POST /wallet/withdraw
+{"phone":"07...","amount":100000,"recipientName":"Shop"}</pre>
+<h2>Balance</h2><pre class="code">GET /wallet/balance</pre>
+<h2>Webhook</h2><pre class="code">{"event":"payment.completed","data":{"reference":"KPD...","status":"completed","amount":3061,"net_amount":3030}}</pre>
+</div>`}
+function pageDocs(ct){ct.innerHTML=docsHtml()}
+function renderDocsPublic(){app.innerHTML=`<nav class="lp-nav"><a class="lp-brand" href="#/"><img src="/assets/logo.png" alt=""/>KewePay</a><a class="btn btn-brand btn-sm" href="#/login">Log in</a></nav><div class="content">${docsHtml()}</div>`}
+window.addEventListener("hashchange",route);route();

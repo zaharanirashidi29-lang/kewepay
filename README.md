@@ -1,54 +1,50 @@
 # KewePay
 
-Your payment gateway for Tanzania. Merchants use **KewePay** API keys; every collection is settled through **Snippe**.
+Tanzania payment **sub-gateway**. Merchants use `kp_live_*` API keys; every collection/payout is settled through a **single Snippe** master key.
 
-This project is **separate from UnlockVIP** (`unlockvip-backend`). Do not deploy them as one service.
+Separate from UnlockVIP — do not mix deploys or databases.
 
 ## Features
 
-- Merchant register / login
+- Merchant register / login + dashboard
 - Live API keys (`kp_live_…`)
-- `POST /v1/payments` mobile money collection via Snippe
-- Snippe webhook intake → merchant webhook fan-out
-- Dashboard: volume, fees, keys, transactions
-- Platform fee (`PLATFORM_FEE_PERCENT`)
-- Admin bootstrap user
+- `POST /v1/payments` → Snippe mobile money
+- Snippe webhook intake + status sync loop
+- Merchant webhook fan-out (signed)
+- Wallet deposit / withdraw (min 100,000 TZS)
+- Rate limits, hashed API keys, SSRF-safe webhooks
 
-## Quick start
+## Local
 
 ```bash
 cp .env.example .env
 # set MONGODB_URI, SNIPPE_API_KEY, JWT_SECRET
 npm install
-npm run dev
+npm start
 ```
 
 Open http://localhost:4100
 
-Default admin (first boot):
+## Deploy on Render
 
-- email: `admin@kewepay.local`
-- password: `ChangeMe123!` (change via env)
+`render.yaml` is included.
 
-## Important
+1. Push this repo to GitHub.
+2. Render → **New** → **Blueprint** (or Web Service) → select `kewepay`.
+3. Set secrets (Dashboard → Environment):
+   - `MONGODB_URI` (Atlas DB named `kewepay`)
+   - `SNIPPE_API_KEY`
+   - `ADMIN_EMAIL` / `ADMIN_PASSWORD`
+   - `PUBLIC_BASE_URL=https://<your-service>.onrender.com`
+   - `SNIPPE_WEBHOOK_URL=https://<your-service>.onrender.com/webhooks/snippe`
+4. After live, point Snippe webhooks at that HTTPS URL.
 
-Use a **dedicated MongoDB database** (default name `kewepay`) so UnlockVIP data is never touched.
-
-Prefer a **separate Snippe API key** for KewePay in production so UnlockVIP and KewePay balances/history stay clean.
-
-## Deploy (Render)
-
-1. Create a **new** Web Service from this repo (not UnlockVIP).
-2. Set env vars from `.env.example`.
-3. Start command: `npm start`
-4. Set `PUBLIC_BASE_URL` to the Render URL.
+Health: `GET /health`
 
 ## API
 
-See in-app **Docs** (`#/docs`) or call:
-
-- `POST /auth/register`
-- `POST /auth/login`
-- `POST /keys` (session)
+- `POST /auth/register` · `POST /auth/login`
+- `POST /keys` (session) → creates `kp_live_…`
 - `POST /v1/payments` (API key)
 - `GET /v1/payments/:reference` (API key)
+- `POST /webhooks/snippe` (Snippe only)

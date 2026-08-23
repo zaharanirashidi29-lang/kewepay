@@ -24,6 +24,7 @@ const paymentSchema = new mongoose.Schema(
     netAmount: { type: Number, default: 0 },
     failureReason: { type: String, default: "" },
     snippeResponse: { type: Object, default: {} },
+    walletCreditedAt: { type: Date, default: null },
     completedAt: { type: Date }
   },
   { timestamps: true }

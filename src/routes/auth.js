@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const { signToken, requireSession } = require("../middleware/auth");
+const { isSafePublicUrl } = require("../middleware/security");
 
 const router = express.Router();
 
@@ -20,7 +21,7 @@ router.post("/register", async (req, res) => {
     const user = await User.create({
       name,
       email: String(email).toLowerCase(),
-      passwordHash: await bcrypt.hash(password, 10),
+      passwordHash: await bcrypt.hash(password, 12),
       businessName: businessName || name,
       role: "merchant"
     });
@@ -85,11 +86,30 @@ router.get("/me", requireSession, async (req, res) => {
 
 router.patch("/me", requireSession, async (req, res) => {
   const { businessName, webhookUrl, name } = req.body || {};
-  if (businessName != null) req.user.businessName = businessName;
-  if (webhookUrl != null) req.user.webhookUrl = webhookUrl;
-  if (name != null) req.user.name = name;
+  if (businessName != null) req.user.businessName = String(businessName).slice(0, 120);
+  if (name != null) req.user.name = String(name).slice(0, 120);
+  if (webhookUrl != null) {
+    const url = String(webhookUrl).trim();
+    if (url && !isSafePublicUrl(url)) {
+      return res.status(400).json({
+        success: false,
+        error: "webhookUrl must be a public HTTPS URL (no localhost/private IPs)"
+      });
+    }
+    req.user.webhookUrl = url;
+  }
   await req.user.save();
-  res.json({ success: true, user: req.user });
+  res.json({
+    success: true,
+    user: {
+      id: req.user._id,
+      name: req.user.name,
+      email: req.user.email,
+      role: req.user.role,
+      businessName: req.user.businessName,
+      webhookUrl: req.user.webhookUrl
+    }
+  });
 });
 
 module.exports = router;
