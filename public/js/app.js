@@ -192,7 +192,7 @@ function docsHtml(){return `<div class="docs"><h1 class="h1">API Documentation</
 <h2>Withdraw (min 100,000 TZS)</h2><pre class="code">POST /wallet/withdraw
 {"phone":"07...","amount":100000,"recipientName":"Shop"}</pre>
 <h2>Balance</h2><pre class="code">GET /wallet/balance</pre>
-<h2>Webhook</h2><pre class="code">{"event":"payment.completed","data":{"reference":"KPD...","status":"completed","amount":10000,"net_amount":3030}}</pre>
+<h2>Webhook</h2><pre class="code">{"event":"payment.completed","data":{"reference":"KPD...","status":"completed","amount":10000}}</pre>
 </div>`}
 function pageDocs(ct){ct.innerHTML=docsHtml()}
 function renderDocsPublic(){app.innerHTML=`<nav class="lp-nav"><a class="lp-brand" href="#/"><img src="/assets/logo.png" alt=""/>KewePay</a><a class="btn btn-brand btn-sm" href="#/login">Log in</a></nav><div class="content">${docsHtml()}</div>`}
