@@ -31,7 +31,7 @@ services:
       - key: SNIPPE_SYNC_INTERVAL_MS
         value: "15000"
       - key: PLATFORM_FEE_PERCENT
-        value: "1.0"
+        value: "0"
       - key: MIN_WITHDRAW_TZS
         value: "100000"
       - key: MAX_API_KEYS_PER_MERCHANT

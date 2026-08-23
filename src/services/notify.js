@@ -32,8 +32,6 @@ async function notifyMerchant(payment) {
       currency: payment.currency || "TZS",
       phone: payment.phone,
       metadata: payment.metadata || {},
-      platform_fee: payment.platformFeeAmount,
-      net_amount: payment.netAmount,
       failure_reason: payment.failureReason || undefined,
       completed_at: payment.completedAt || undefined
     }

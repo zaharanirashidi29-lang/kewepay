@@ -12,7 +12,8 @@ function publicBase() {
 }
 
 function feeFor(amount) {
-  const pct = Number(process.env.PLATFORM_FEE_PERCENT || 1);
+  // Default 0 so wallet credits the exact deposited amount
+  const pct = Number(process.env.PLATFORM_FEE_PERCENT || 0);
   const fee = Math.round((Number(amount) * pct) / 100);
   return { pct, fee, net: Number(amount) - fee };
 }
@@ -37,8 +38,6 @@ function merchantPaymentView(payment) {
     currency: payment.currency || "TZS",
     phone: payment.phone,
     metadata: payment.metadata || {},
-    platform_fee: payment.platformFeeAmount,
-    net_amount: payment.netAmount,
     failure_reason: failure === "Payment failed" ? snip.failure_reason || failure : failure,
     snippe_updated_at: snip.updated_at || snip.updatedAt || snip.completed_at || undefined,
     created_at: payment.createdAt,

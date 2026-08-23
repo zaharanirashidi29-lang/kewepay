@@ -27,11 +27,14 @@ async function applyPaymentFromSnippe(payment, live, source = "SYNC") {
     payment.completedAt = new Date();
     payment.failureReason = "";
     if (!payment.walletCreditedAt) {
-      const credit = Number(payment.netAmount || payment.amount || 0);
+      // Credit exact deposited amount (not fee-adjusted net)
+      const credit = Number(payment.amount || 0);
       await User.findByIdAndUpdate(payment.merchantId, {
         $inc: { walletBalance: credit }
       });
       payment.walletCreditedAt = new Date();
+      payment.netAmount = credit;
+      payment.platformFeeAmount = 0;
     }
     await payment.save();
     await notifyMerchant(payment).catch(() => {});

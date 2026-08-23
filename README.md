@@ -2,8 +2,6 @@
 
 Tanzania payment **sub-gateway**. Merchants use `kp_live_*` API keys; every collection/payout is settled through a **single Snippe** master key.
 
-Separate from UnlockVIP — do not mix deploys or databases.
-
 ## Features
 
 - Merchant register / login + dashboard

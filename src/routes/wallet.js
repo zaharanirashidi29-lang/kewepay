@@ -46,7 +46,7 @@ router.post(
       }
 
       const reference = `KPD${Date.now()}${Math.floor(Math.random() * 900 + 100)}`;
-      const pct = Number(process.env.PLATFORM_FEE_PERCENT || 1);
+      const pct = Number(process.env.PLATFORM_FEE_PERCENT || 0);
       const fee = Math.round((amt * pct) / 100);
       const net = amt - fee;
       const webhookUrl = publicWebhook();
@@ -96,8 +96,7 @@ router.post(
         data: {
           reference: payment.reference,
           status: "pending",
-          amount: amt,
-          net_amount: net
+          amount: amt
         }
       });
     } catch (err) {

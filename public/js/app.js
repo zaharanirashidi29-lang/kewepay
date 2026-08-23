@@ -20,7 +20,7 @@ function renderLanding(){
       <div>
         <div class="eyebrow">Tanzania payment gateway</div>
         <h1>Collect, withdraw & <span>get paid</span></h1>
-        <p>KewePay is your business payment platform. Accept M-Pesa, Airtel, Mixx & Halotel — then withdraw to mobile money. Powered by Snippe under the hood.</p>
+        <p>KewePay is your business payment platform. Accept M-Pesa, Airtel, Mixx & Halotel — then withdraw to mobile money. Collect mobile money and manage your wallet in one place.</p>
         <div class="cta-row">
           <a class="btn btn-brand" href="#/register">Open account</a>
           <a class="btn btn-ghost" href="#/docs">Read API docs</a>
@@ -50,7 +50,7 @@ function renderLanding(){
       </div>
       <a class="btn btn-brand" href="#/register">Create free account</a>
     </div>
-    <footer class="footer"><span>© KewePay</span><span>Separate from UnlockVIP · Rails by Snippe</span></footer>
+    <footer class="footer"><span>© KewePay</span><span>Tanzania payment gateway</span></footer>
   </div>`}
 
 function renderAuth(mode){
@@ -125,7 +125,7 @@ async function pageDeposit(ct){
   ct.innerHTML=`<h1 class="h1">Deposit</h1><p class="muted">Send USSD push. Status follows Snippe live (pending → completed/failed).</p>
   <div class="grid2"><form class="card" id="dep">
     <div class="field"><label>Phone</label><input name="phone" placeholder="07XXXXXXXX" required/></div>
-    <div class="field"><label>Amount</label><input name="amount" type="number" min="500" value="3061" required/></div>
+    <div class="field"><label>Amount</label><input name="amount" type="number" min="500" value="10000" required/></div>
     <div class="field"><label>First name</label><input name="firstname" value="Customer"/></div>
     <div class="field"><label>Last name</label><input name="lastname" value="User"/></div>
     <button class="btn btn-brand btn-block" type="submit">Send USSD</button><div id="msg"></div>
@@ -167,8 +167,8 @@ async function pageWithdraw(ct){
 }
 async function pagePayments(ct){
   const data=await api("/payments?limit=50");
-  ct.innerHTML=`<h1 class="h1">Payments</h1><div class="table-wrap"><table><thead><tr><th>Ref</th><th>Phone</th><th>Amount</th><th>Net</th><th>Kewe</th><th>Snippe</th><th>Reason</th><th>Created</th></tr></thead>
-  <tbody>${(data.payments||[]).map(p=>`<tr><td class="mono">${p.reference}</td><td>${p.phone}</td><td>${money(p.amount)}</td><td>${money(p.net_amount??p.netAmount)}</td><td>${badge(p.status)}</td><td class="mono">${p.snippe_status||"—"}</td><td>${p.failure_reason||"—"}</td><td>${new Date(p.created_at||p.createdAt).toLocaleString()}</td></tr>`).join("")||"<tr><td colspan=8>None</td></tr>"}</tbody></table></div>`}
+  ct.innerHTML=`<h1 class="h1">Payments</h1><div class="table-wrap"><table><thead><tr><th>Ref</th><th>Phone</th><th>Amount</th><th>Kewe</th><th>Snippe</th><th>Reason</th><th>Created</th></tr></thead>
+  <tbody>${(data.payments||[]).map(p=>`<tr><td class="mono">${p.reference}</td><td>${p.phone}</td><td>${money(p.amount)}</td><td>${badge(p.status)}</td><td class="mono">${p.snippe_status||"—"}</td><td>${p.failure_reason||"—"}</td><td>${new Date(p.created_at||p.createdAt).toLocaleString()}</td></tr>`).join("")||"<tr><td colspan=7>None</td></tr>"}</tbody></table></div>`}
 async function pageKeys(ct){
   const data=await api("/keys");
   ct.innerHTML=`<h1 class="h1">API Keys</h1><div class="toolbar"><button class="btn btn-brand btn-sm" id="newk">Create key</button></div><div id="box"></div>
@@ -185,14 +185,14 @@ function docsHtml(){return `<div class="docs"><h1 class="h1">API Documentation</
 <p class="muted">KewePay merchant API — collections & withdrawals via Snippe.</p>
 <h2>Auth</h2><pre class="code">Authorization: Bearer kp_live_xxx</pre>
 <h2>Collect / deposit</h2><pre class="code">POST /v1/payments
-{"phone":"2557...","amount":3061,"customer":{"firstname":"Asha","lastname":"Juma","email":"a@x.com"}}</pre>
+{"phone":"2557...","amount":10000,"customer":{"firstname":"Asha","lastname":"Juma","email":"a@x.com"}}</pre>
 <h2>Get payment</h2><pre class="code">GET /v1/payments/{reference}</pre>
 <h2>Wallet deposit</h2><pre class="code">POST /wallet/deposit
 {"phone":"07...","amount":5000}</pre>
 <h2>Withdraw (min 100,000 TZS)</h2><pre class="code">POST /wallet/withdraw
 {"phone":"07...","amount":100000,"recipientName":"Shop"}</pre>
 <h2>Balance</h2><pre class="code">GET /wallet/balance</pre>
-<h2>Webhook</h2><pre class="code">{"event":"payment.completed","data":{"reference":"KPD...","status":"completed","amount":3061,"net_amount":3030}}</pre>
+<h2>Webhook</h2><pre class="code">{"event":"payment.completed","data":{"reference":"KPD...","status":"completed","amount":10000,"net_amount":3030}}</pre>
 </div>`}
 function pageDocs(ct){ct.innerHTML=docsHtml()}
 function renderDocsPublic(){app.innerHTML=`<nav class="lp-nav"><a class="lp-brand" href="#/"><img src="/assets/logo.png" alt=""/>KewePay</a><a class="btn btn-brand btn-sm" href="#/login">Log in</a></nav><div class="content">${docsHtml()}</div>`}
