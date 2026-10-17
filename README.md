@@ -41,7 +41,7 @@ Health: `GET /health`
 
 ## API
 
-- `POST /auth/register` · `POST /auth/login`
+- `POST /auth/register` (name, email, phone, password) · `POST /auth/login` (phone, password)
 - `POST /keys` (session) → creates `kp_live_…`
 - `POST /v1/payments` (API key)
 - `GET /v1/payments/:reference` (API key)

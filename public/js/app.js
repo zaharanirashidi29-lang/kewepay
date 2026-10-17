@@ -61,10 +61,10 @@ function renderAuth(mode){
       <a class="lp-brand" href="#/"><img src="/assets/logo.png" alt="" style="width:28px;height:28px"/>KewePay</a>
       <form class="auth-card" id="f">
         <h1>${login?"Karibu tena":"Create account"}</h1>
-        <p class="sub">${login?"Log in to manage deposits, withdrawals and API keys.":"Open your KewePay merchant account."}</p>
-        ${login?"":`<div class="field"><label>Full name</label><input name="name" required/></div><div class="field"><label>Business name</label><input name="businessName" required/></div>`}
-        <div class="field"><label>Email</label><input name="email" type="email" required/></div>
-        <div class="field"><label>Password</label><input name="password" type="password" required minlength="8"/></div>
+        <p class="sub">${login?"Log in with your phone number to manage deposits, withdrawals and API keys.":"Open your KewePay merchant account."}</p>
+        ${login?"":`<div class="field"><label>Full name</label><input name="name" required autocomplete="name"/></div><div class="field"><label>Business name</label><input name="businessName" required/></div><div class="field"><label>Email</label><input name="email" type="email" required autocomplete="email"/></div>`}
+        <div class="field"><label>Phone number</label><input name="phone" type="tel" inputmode="tel" placeholder="07XXXXXXXX" required autocomplete="tel"/></div>
+        <div class="field"><label>Password</label><input name="password" type="password" required minlength="8" autocomplete="${login?"current-password":"new-password"}"/></div>
         <button class="btn btn-brand btn-block" type="submit">${login?"Log in":"Register"}</button>
         <div id="msg"></div>
         <p class="muted" style="margin-top:1rem">${login?`No account? <a href="#/register" style="color:var(--brand)">Register</a>`:`Have an account? <a href="#/login" style="color:var(--brand)">Log in</a>`}</p>
@@ -77,7 +77,7 @@ function renderAuth(mode){
     </div>
   </div>`;
   document.getElementById("f").onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.target);const msg=document.getElementById("msg");
-    try{const body=login?{email:fd.get("email"),password:fd.get("password")}:{name:fd.get("name"),businessName:fd.get("businessName"),email:fd.get("email"),password:fd.get("password")};
+    try{const body=login?{phone:fd.get("phone"),password:fd.get("password")}:{name:fd.get("name"),businessName:fd.get("businessName"),email:fd.get("email"),phone:fd.get("phone"),password:fd.get("password")};
       const data=await api(login?"/auth/login":"/auth/register",{method:"POST",body:JSON.stringify(body)});
       S.token=data.token;S.user=data.user;localStorage.setItem("kp_token",data.token);location.hash="#/app";
     }catch(err){msg.className="msg err";msg.textContent=err.message}}
@@ -94,7 +94,7 @@ function paintShell(){
     <div class="side-brand"><img src="/assets/logo.png" alt=""/>KewePay</div>
     ${[["overview","Overview"],["deposit","Deposit"],["withdraw","Withdraw"],["payments","Payments"],["keys","API Keys"],["docs","API Docs"]].map(([id,l])=>`<button class="nav-item ${S.page===id?"active":""}" data-page="${id}">${l}</button>`).join("")}
     <div style="flex:1"></div><button class="nav-item" id="logout">Log out</button>`;
-  document.getElementById("tb").innerHTML=`<div style="display:flex;gap:.6rem;align-items:center"><button class="menu-btn" id="menu">Menu</button><div><strong>${S.user.businessName||S.user.name}</strong><div class="muted" style="font-size:.8rem">${S.user.email}</div></div></div><span class="badge ok">${S.user.role}</span>`;
+  document.getElementById("tb").innerHTML=`<div style="display:flex;gap:.6rem;align-items:center"><button class="menu-btn" id="menu">Menu</button><div><strong>${S.user.businessName||S.user.name}</strong><div class="muted" style="font-size:.8rem">${S.user.phone||S.user.email||""}</div></div></div><span class="badge ok">${S.user.role}</span>`;
   document.querySelectorAll("[data-page]").forEach(b=>b.onclick=async()=>{S.page=b.dataset.page;paintShell();await paintPage()});
   document.getElementById("logout").onclick=()=>{S.token="";localStorage.removeItem("kp_token");location.hash="#/"};
   document.getElementById("menu").onclick=()=>{document.getElementById("sb").classList.add("open");document.getElementById("bd").classList.remove("hidden")};

@@ -3,26 +3,65 @@ const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const { signToken, requireSession } = require("../middleware/auth");
 const { isSafePublicUrl } = require("../middleware/security");
+const { normalizePhone } = require("../services/snippe");
 
 const router = express.Router();
 
+function isValidTzPhone(phone) {
+  const normalized = normalizePhone(phone);
+  return /^255[67]\d{8}$/.test(normalized);
+}
+
+function publicUser(user) {
+  return {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone || "",
+    role: user.role,
+    businessName: user.businessName,
+    webhookUrl: user.webhookUrl
+  };
+}
+
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, password, businessName } = req.body || {};
-    if (!name || !email || !password) {
-      return res.status(400).json({ success: false, error: "name, email, password required" });
+    const { name, email, phone, password, businessName } = req.body || {};
+    if (!name || !email || !phone || !password) {
+      return res.status(400).json({
+        success: false,
+        error: "name, email, phone, password required"
+      });
     }
     if (String(password).length < 8) {
       return res.status(400).json({ success: false, error: "Password must be at least 8 characters" });
     }
-    const exists = await User.findOne({ email: String(email).toLowerCase() });
-    if (exists) return res.status(409).json({ success: false, error: "Email already registered" });
+    if (!isValidTzPhone(phone)) {
+      return res.status(400).json({
+        success: false,
+        error: "Enter a valid Tanzania phone number (e.g. 07XXXXXXXX)"
+      });
+    }
+
+    const normalizedPhone = normalizePhone(phone);
+    const emailLower = String(email).toLowerCase();
+
+    const exists = await User.findOne({
+      $or: [{ email: emailLower }, { phone: normalizedPhone }]
+    });
+    if (exists) {
+      const conflict =
+        exists.email === emailLower ? "Email already registered" : "Phone already registered";
+      return res.status(409).json({ success: false, error: conflict });
+    }
 
     const user = await User.create({
       name,
-      email: String(email).toLowerCase(),
+      email: emailLower,
+      phone: normalizedPhone,
       passwordHash: await bcrypt.hash(password, 12),
       businessName: businessName || name,
+      withdrawPhone: normalizedPhone,
       role: "merchant"
     });
 
@@ -30,13 +69,7 @@ router.post("/register", async (req, res) => {
     res.json({
       success: true,
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        businessName: user.businessName
-      }
+      user: publicUser(user)
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -45,8 +78,18 @@ router.post("/register", async (req, res) => {
 
 router.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body || {};
-    const user = await User.findOne({ email: String(email || "").toLowerCase() });
+    const { phone, password } = req.body || {};
+    if (!phone || !password) {
+      return res.status(400).json({ success: false, error: "phone and password required" });
+    }
+    if (!isValidTzPhone(phone)) {
+      return res.status(400).json({
+        success: false,
+        error: "Enter a valid Tanzania phone number (e.g. 07XXXXXXXX)"
+      });
+    }
+
+    const user = await User.findOne({ phone: normalizePhone(phone) });
     if (!user) return res.status(401).json({ success: false, error: "Invalid credentials" });
     const ok = await bcrypt.compare(String(password || ""), user.passwordHash);
     if (!ok) return res.status(401).json({ success: false, error: "Invalid credentials" });
@@ -56,14 +99,7 @@ router.post("/login", async (req, res) => {
     res.json({
       success: true,
       token: signToken(user),
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        businessName: user.businessName,
-        webhookUrl: user.webhookUrl
-      }
+      user: publicUser(user)
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -73,14 +109,7 @@ router.post("/login", async (req, res) => {
 router.get("/me", requireSession, async (req, res) => {
   res.json({
     success: true,
-    user: {
-      id: req.user._id,
-      name: req.user.name,
-      email: req.user.email,
-      role: req.user.role,
-      businessName: req.user.businessName,
-      webhookUrl: req.user.webhookUrl
-    }
+    user: publicUser(req.user)
   });
 });
 
@@ -101,14 +130,7 @@ router.patch("/me", requireSession, async (req, res) => {
   await req.user.save();
   res.json({
     success: true,
-    user: {
-      id: req.user._id,
-      name: req.user.name,
-      email: req.user.email,
-      role: req.user.role,
-      businessName: req.user.businessName,
-      webhookUrl: req.user.webhookUrl
-    }
+    user: publicUser(req.user)
   });
 });
 

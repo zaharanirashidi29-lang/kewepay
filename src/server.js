@@ -94,16 +94,23 @@ async function ensureAdmin() {
   const email = String(process.env.ADMIN_EMAIL || "admin@kewepay.local").toLowerCase();
   const password = process.env.ADMIN_PASSWORD || "ChangeMe123!";
   const name = process.env.ADMIN_NAME || "KewePay Admin";
+  const phone = snippe.normalizePhone(process.env.ADMIN_PHONE || "255700000000");
   let admin = await User.findOne({ email });
   if (!admin) {
     admin = await User.create({
       name,
       email,
+      phone,
       passwordHash: await bcrypt.hash(password, 12),
       role: "admin",
-      businessName: "KewePay Platform"
+      businessName: "KewePay Platform",
+      withdrawPhone: phone
     });
-    console.log("Bootstrap admin created:", email);
+    console.log("Bootstrap admin created:", email, phone);
+  } else if (!admin.phone) {
+    admin.phone = phone;
+    await admin.save();
+    console.log("Bootstrap admin phone set:", phone);
   }
 }
 
